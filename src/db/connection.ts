@@ -47,9 +47,11 @@ export class DmConnection {
 
   private conn: any = null;
   private autoCommitFlag = true;
+  private config: DmConfig | null = null;
+  private connecting: Promise<void> | null = null;
 
   /**
-   * 加载达梦 JDBC JAR 到 JVM classpath
+   * 加载达梦 JDBC JAR 到 JVM classpath（仅加载 JAR，不连接数据库）
    * @param jarPath JAR 文件路径
    * @param javaHome 可选的 JAVA_HOME 路径（如设置，会自动修正到 JDK 根目录）
    */
@@ -126,9 +128,41 @@ export class DmConnection {
   }
 
   /**
-   * 建立数据库连接
+   * 设置数据库配置（延迟连接模式：不立即连接，等首次工具调用时再连）
    */
-  async connect(config: DmConfig): Promise<void> {
+  setConfig(config: DmConfig): void {
+    this.config = config;
+  }
+
+  /**
+   * 确保数据库已连接（懒连接 + 并发安全）
+   * 多个工具并发调用时，只触发一次连接
+   */
+  private async ensureConnection(): Promise<void> {
+    if (this.conn) return;
+
+    // 防止并发调用时创建多个连接
+    if (this.connecting) {
+      await this.connecting;
+      return;
+    }
+
+    if (!this.config) {
+      throw new Error("数据库配置未设置，请先调用 setConfig()");
+    }
+
+    this.connecting = this._connect(this.config);
+    try {
+      await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
+  }
+
+  /**
+   * 建立数据库连接（内部方法）
+   */
+  private async _connect(config: DmConfig): Promise<void> {
     const DriverManager = importClass("java.sql.DriverManager");
     const Properties = importClass("java.util.Properties");
 
@@ -161,7 +195,7 @@ export class DmConnection {
    * 执行 SELECT 查询
    */
   async query(sql: string): Promise<QueryResult> {
-    this.ensureConnected();
+    await this.ensureConnection();
     const start = Date.now();
 
     const stmt = await this.conn.createStatement();
@@ -212,7 +246,7 @@ export class DmConnection {
    * 执行 DML / DDL
    */
   async execute(sql: string): Promise<ExecuteResult> {
-    this.ensureConnected();
+    await this.ensureConnection();
     const start = Date.now();
 
     const stmt = await this.conn.createStatement();
@@ -234,7 +268,7 @@ export class DmConnection {
     sql: string,
     params: any[]
   ): Promise<ExecuteResult> {
-    this.ensureConnected();
+    await this.ensureConnection();
     const start = Date.now();
 
     const ps = await this.conn.prepareStatement(sql);
@@ -260,7 +294,7 @@ export class DmConnection {
   async describeTable(
     tableName: string
   ): Promise<{ columns: ColumnInfo[]; indexes: IndexInfo[] }> {
-    this.ensureConnected();
+    await this.ensureConnection();
     const [schema, table] = this.parseTableName(tableName);
 
     // 查询列信息
@@ -334,7 +368,7 @@ export class DmConnection {
       type?: "TABLE" | "VIEW" | "ALL";
     }
   ): Promise<TableInfo[]> {
-    this.ensureConnected();
+    await this.ensureConnection();
     const schema = options?.schema;
     const pattern = options?.pattern ? options.pattern.toUpperCase() : "%";
     const type = options?.type ?? "ALL";
@@ -376,7 +410,7 @@ export class DmConnection {
    * 列举 schema
    */
   async listSchemas(): Promise<string[]> {
-    this.ensureConnected();
+    await this.ensureConnection();
     const sql = `
       SELECT DISTINCT USERNAME
       FROM ALL_USERS
@@ -392,20 +426,20 @@ export class DmConnection {
   // ─── 事务控制 ─────────────────────────────────────────
 
   async beginTransaction(): Promise<void> {
-    this.ensureConnected();
+    await this.ensureConnection();
     await this.conn.setAutoCommit(false);
     this.autoCommitFlag = false;
   }
 
   async commit(): Promise<void> {
-    this.ensureConnected();
+    await this.ensureConnection();
     await this.conn.commit();
     await this.conn.setAutoCommit(true);
     this.autoCommitFlag = true;
   }
 
   async rollback(): Promise<void> {
-    this.ensureConnected();
+    await this.ensureConnection();
     await this.conn.rollback();
     await this.conn.setAutoCommit(true);
     this.autoCommitFlag = true;
@@ -434,12 +468,6 @@ export class DmConnection {
 
   isConnected(): boolean {
     return this.conn !== null;
-  }
-
-  private ensureConnected(): void {
-    if (!this.conn) {
-      throw new Error("数据库连接未建立，请先调用 connect()");
-    }
   }
 
   private parseTableName(

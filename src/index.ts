@@ -260,17 +260,10 @@ async function main() {
     process.exit(1);
   }
 
-  // ─── 3. 建立数据库连接 ─────────────────────
+  // ─── 3. 设置数据库配置（延迟连接） ─────────────
   const db = new DmConnection();
-
-  try {
-    log(config, "info", "正在连接数据库...");
-    await db.connect(config.dm);
-    log(config, "info", "数据库连接成功");
-  } catch (err) {
-    log(config, "error", `数据库连接失败: ${(err as Error).message}`);
-    process.exit(1);
-  }
+  db.setConfig(config.dm);
+  log(config, "info", "数据库将延迟连接（首次调用工具时自动建立）");
 
   // ─── 4. 初始化权限控制器 ──────────────────
   const permission = new PermissionController(

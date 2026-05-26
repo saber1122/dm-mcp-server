@@ -1,6 +1,6 @@
 {
   "name": "dm-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "达梦数据库 MCP Server — 支持 Claude Code / Cursor / VS Code / Windsurf 等 AI 编程工具",
   "type": "module",
   "main": "dist/index.js",
