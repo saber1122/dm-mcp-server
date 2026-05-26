@@ -1,0 +1,41 @@
+{
+  "dm": {
+    "jarPath": "/opt/dmdbms/drivers/jdbc/DmJdbcDriver18.jar",
+    "host": "127.0.0.1",
+    "port": 5236,
+    "database": "DAMENG",
+    "username": "SYSDBA",
+    "password": "SYSDBA001",
+    "schema": "SYSDBA",
+    "jdbcParams": {
+      "compatibleMode": "mysql",
+      "characterEncoding": "UTF-8",
+      "useUnicode": "true",
+      "useSSL": "false",
+      "tinyInt1isBit": "false",
+      "allowPublicKeyRetrieval": "true",
+      "serverTimezone": "Asia/Shanghai",
+      "clobAsString": "true",
+      "loginTimeout": "30",
+      "socketTimeout": "60000"
+    },
+    "connectionPool": {
+      "min": 1,
+      "max": 10,
+      "idleTimeoutMs": 30000
+    }
+  },
+  "permission": {
+    "mode": "readonly",
+    "allowedSchemas": ["SYSDBA"],
+    "blockedTables": ["SYS_USER", "SYS_PRIVS", "SYS_AUDIT"],
+    "maxResultRows": 500,
+    "enableExplain": true,
+    "requireConfirmForDDL": true
+  },
+  "server": {
+    "name": "dm-mcp",
+    "version": "1.0.0",
+    "logLevel": "info"
+  }
+}

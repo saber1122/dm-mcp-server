@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "dm-database": {
+      "command": "node",
+      "args": ["/absolute/path/to/dm-mcp-server/dist/index.js"],
+      "env": {
+        "DM_MCP_CONFIG": "/absolute/path/to/dm-mcp-server/config.json"
+      }
+    }
+  }
+}
