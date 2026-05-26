@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig, ConfigSchema, type Config } from "./config.js";
 import * as fs from "fs";
+import * as path from "path";
 import { DmConnection } from "./db/connection.js";
 import { PermissionController } from "./permission.js";
 import { registerQueryTool } from "./tools/query.js";
@@ -88,11 +89,12 @@ DM MCP Server — 达梦数据库 MCP 工具服务
 
 用法:
   dm-mcp [选项]
-  node dist/index.js [选项]
   npx dm-mcp-server [选项]
+  npx -y dm-mcp-server [选项]
 
 选项:
-  --config, -c <path>    配置文件路径（JSON 格式）
+  --config, -c <path>    配置文件路径（支持相对路径，相对于项目根目录）
+                          不指定时自动在当前目录查找 dm-mcp-config.json
   --jar <path>           达梦 JDBC JAR 文件路径
   --host <host>          数据库主机地址（默认 127.0.0.1）
   --port <port>          数据库端口（默认 5236）
@@ -104,26 +106,33 @@ DM MCP Server — 达梦数据库 MCP 工具服务
   --help, -h             显示帮助信息
   --version, -v          显示版本号
 
-配置优先级:
-  1. 命令行参数（--jar, --host 等）
-  2. 环境变量 DM_MCP_CONFIG 指向的配置文件
-  3. 当前目录下的 config.json
+配置查找优先级:
+  1. 命令行参数 --config 指定的路径
+  2. 环境变量 DM_MCP_CONFIG 指向的路径
+  3. 当前目录下的 dm-mcp-config.json
+
+配置文件中的 jarPath/javaHome 支持相对路径（相对于配置文件所在目录）。
 
 示例:
-  # 使用配置文件
-  dm-mcp --config /etc/dm-mcp.json
+  # 使用项目根目录的配置文件（自动查找 dm-mcp-config.json）
+  npx -y dm-mcp-server
+
+  # 指定配置文件（相对路径）
+  npx -y dm-mcp-server --config ./my-dm-config.json
 
   # 全部命令行参数
-  dm-mcp --jar /opt/dm/DmJdbcDriver18.jar --host 192.168.1.100 --user SYSDBA --password xxx --mode readwrite
+  npx -y dm-mcp-server --jar ./drivers/DmJdbcDriver18.jar --host 192.168.1.100 --user SYSDBA --password xxx
 
-  # 环境变量
-  DM_MCP_CONFIG=/etc/dm-mcp.json dm-mcp
-
-AI 工具接入:
-  Claude Code:  claude mcp add dm-mcp -- node /path/to/dist/index.js --config /path/to/config.json
-  Cursor:       .cursor/mcp.json 详见 README.md
-  VS Code:      settings.json 中配置 mcp.servers 详见 README.md
-  Windsurf:     .windsurf/mcp.json 详见 README.md
+AI 工具接入（.mcp.json / mcp.json）:
+  {
+    "mcpServers": {
+      "dm-database": {
+        "command": "npx",
+        "args": ["-y", "dm-mcp-server"],
+        "env": { "JAVA_HOME": "/path/to/jdk/home" }
+      }
+    }
+  }
 
 `);
 }
@@ -161,8 +170,14 @@ async function main() {
   // ─── 1. 加载配置 ─────────────────────────────
   let config: Config;
 
-  // 配置文件路径：命令行 > 环境变量 > 默认
-  const configPath = args.config ?? process.env.DM_MCP_CONFIG ?? "./config.json";
+  // 配置文件查找优先级：命令行 --config > 环境变量 DM_MCP_CONFIG > CWD/dm-mcp-config.json
+  const cwd = process.cwd();
+  const autoConfigCandidates = [
+    path.join(cwd, "dm-mcp-config.json"),
+    path.join(cwd, "config.json"),
+  ];
+  const autoConfig = autoConfigCandidates.find((p) => fs.existsSync(p));
+  const configPath = args.config ?? process.env.DM_MCP_CONFIG ?? autoConfig ?? undefined;
 
   if (args.jar || args.host || args.username || args.password) {
     // 命令行参数模式：创建最小配置
@@ -182,9 +197,9 @@ async function main() {
     };
 
     // 如果指定了配置文件，先加载它作为基础，再用命令行参数覆盖
-    if (configPath && configPath !== "./config.json") {
+    if (configPath) {
       try {
-        const base = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+        const base = JSON.parse(fs.readFileSync(path.resolve(configPath), "utf-8"));
         // 深度合并 dm 字段
         const baseDm = base.dm ?? {};
         const basePerm = base.permission ?? {};
@@ -205,7 +220,7 @@ async function main() {
       process.exit(1);
     }
     config = parsed.data;
-  } else {
+  } else if (configPath) {
     // 配置文件模式
     try {
       config = loadConfig(configPath);
@@ -214,6 +229,12 @@ async function main() {
       process.stderr.write(`使用 --help 查看用法，或通过 --config 指定配置文件\n`);
       process.exit(1);
     }
+  } else {
+    process.stderr.write(
+      `未找到配置文件。请在项目根目录创建 dm-mcp-config.json，或通过 --config 指定配置文件路径。\n` +
+      `使用 --help 查看用法。\n`
+    );
+    process.exit(1);
   }
 
   const serverName = config.server?.name ?? "dm-mcp";
@@ -227,11 +248,12 @@ async function main() {
 
   // ─── 2. 加载 JDBC JAR ──────────────────────
   try {
+    const resolvedJavaHome = config.dm.javaHome ?? process.env.JAVA_HOME ?? undefined;
+    if (resolvedJavaHome) {
+      log(config, "info", `JAVA_HOME: ${resolvedJavaHome}`);
+    }
     log(config, "info", "正在加载达梦 JDBC JAR...");
-    await DmConnection.loadJar(
-      config.dm.jarPath,
-      process.env.JAVA_HOME ?? undefined
-    );
+    await DmConnection.loadJar(config.dm.jarPath, resolvedJavaHome);
     log(config, "info", "JDBC JAR 加载成功");
   } catch (err) {
     log(config, "error", `JAR 加载失败: ${(err as Error).message}`);

@@ -51,7 +51,7 @@ export class DmConnection {
   /**
    * 加载达梦 JDBC JAR 到 JVM classpath
    * @param jarPath JAR 文件路径
-   * @param javaHome 可选的 JAVA_HOME 路径
+   * @param javaHome 可选的 JAVA_HOME 路径（如设置，会自动修正到 JDK 根目录）
    */
   static async loadJar(jarPath: string, javaHome?: string): Promise<void> {
     if (this.jvmLoaded) return;
@@ -66,10 +66,45 @@ export class DmConnection {
       );
     }
 
-    // 如果指定了 JAVA_HOME，设置 JVM 选项（必须在首次 ensureJvm 之前）
+    // 如果指定了 javaHome，自动修正路径（用户可能误指向 bin/ 子目录）
     if (javaHome) {
-      ensureJvm({ opts: [`-Djava.home=${javaHome}`] });
+      let corrected = javaHome.replace(/[\/\\]$/, ""); // 去掉末尾斜杠
+      if (corrected.endsWith("/bin") || corrected.endsWith("\\bin")) {
+        corrected = path.dirname(corrected);
+      }
+      // 确保 JAVA_HOME 环境变量在 java-bridge 初始化之前就设好
+      // java-bridge 通过 process.env.JAVA_HOME 查找 libjvm
+      process.env.JAVA_HOME = corrected;
     }
+
+    // 检查 Java 是否可用
+    if (!process.env.JAVA_HOME) {
+      throw new Error(
+        `Java 未安装或未配置 JAVA_HOME 环境变量\n` +
+        `java-bridge 需要 JAVA_HOME 来定位 JVM (libjvm)\n` +
+        `\n解决方法:\n` +
+        `  1. 在 .mcp.json 的 env 中设置正确的 JAVA_HOME:\n` +
+        `     "JAVA_HOME": "/opt/homebrew/Cellar/openjdk@17/17.0.18/libexec/openjdk.jdk/Contents/Home"\n` +
+        `  2. 或在 config.json 中添加 dm.javaHome 字段:\n` +
+        `     "dm": { "javaHome": "/path/to/jdk/home", ... }\n` +
+        `  3. 或确保系统 PATH 中包含 java 命令\n` +
+        `\n注意: JAVA_HOME 应指向 JDK 根目录，不是 bin/ 子目录`
+      );
+    }
+
+    // 验证 JAVA_HOME 下存在 libjvm
+    const libjvmName = process.platform === "win32" ? "jvm.dll" : "libjvm.dylib";
+    const libjvmPath = path.join(process.env.JAVA_HOME, "lib", "server", libjvmName);
+    if (!fs.existsSync(libjvmPath)) {
+      throw new Error(
+        `在 ${process.env.JAVA_HOME} 下找不到 libjvm\n` +
+        `请确认 JAVA_HOME 指向的是 JDK 根目录（非 bin/ 子目录）\n` +
+        `预期路径: ${libjvmPath}`
+      );
+    }
+
+    // 启动 JVM（java-bridge 会自动读取 process.env.JAVA_HOME）
+    ensureJvm();
 
     // 添加 JAR 到 classpath（同步方法）
     if (!this.jvmClasspathAppended) {

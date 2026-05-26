@@ -10,6 +10,8 @@ export const DmConfigSchema = z.object({
   username: z.string(),
   password: z.string(),
   schema: z.string().optional(),
+  /** JAVA_HOME 路径，指向 JDK 根目录（非 bin/ 子目录）。不设置则依赖环境变量 */
+  javaHome: z.string().optional(),
   jdbcParams: z
     .record(z.string())
     .optional()
@@ -52,6 +54,10 @@ export type PermissionConfig = z.infer<typeof PermissionConfigSchema>;
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
 
+/**
+ * 加载配置文件，自动将 jarPath/javaHome 等相对路径转为绝对路径
+ * 相对路径基于配置文件所在目录解析
+ */
 export function loadConfig(configPath: string): Config {
   const resolved = path.resolve(configPath);
 
@@ -60,6 +66,18 @@ export function loadConfig(configPath: string): Config {
   }
 
   const raw = JSON.parse(fs.readFileSync(resolved, "utf-8"));
+  const configDir = path.dirname(resolved);
+
+  // 将 jarPath 和 javaHome 中的相对路径转为绝对路径（相对于配置文件所在目录）
+  if (raw.dm) {
+    if (raw.dm.jarPath && !path.isAbsolute(raw.dm.jarPath)) {
+      raw.dm.jarPath = path.resolve(configDir, raw.dm.jarPath);
+    }
+    if (raw.dm.javaHome && !path.isAbsolute(raw.dm.javaHome)) {
+      raw.dm.javaHome = path.resolve(configDir, raw.dm.javaHome);
+    }
+  }
+
   const parsed = ConfigSchema.safeParse(raw);
 
   if (!parsed.success) {

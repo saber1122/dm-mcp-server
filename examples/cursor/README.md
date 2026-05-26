@@ -1,8 +1,6 @@
 # Cursor MCP 配置
 
-## 配置方法
-
-### 方法一：通过 Cursor 设置界面
+## 方法一：通过 Cursor 设置界面
 
 1. 打开 Cursor
 2. 进入 Settings → MCP
@@ -10,11 +8,11 @@
 4. 选择 "stdio" 类型
 5. 填写：
    - **Name**: `dm-database`
-   - **Command**: `node`
-   - **Args**: `/absolute/path/to/dm-mcp-server/dist/index.js --config /absolute/path/to/config.json`
-   - **Env**: `DM_MCP_CONFIG=/absolute/path/to/config.json`
+   - **Command**: `npx`
+   - **Args**: `-y dm-mcp-server`
+   - **Env**: `JAVA_HOME=/path/to/jdk/home`
 
-### 方法二：手动编辑配置文件
+## 方法二：手动编辑配置文件
 
 在项目根目录创建 `.cursor/mcp.json`：
 
@@ -22,37 +20,33 @@
 {
   "mcpServers": {
     "dm-database": {
-      "command": "node",
-      "args": ["/absolute/path/to/dm-mcp-server/dist/index.js", "--config", "/absolute/path/to/config.json"],
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server"],
       "env": {
-        "JAVA_HOME": "/path/to/jdk"
+        "JAVA_HOME": "/path/to/jdk/home"
       }
     }
   }
 }
 ```
 
-### 方法三：全局配置
+MCP Server 会自动在项目根目录查找 `dm-mcp-config.json`。
+
+## 全局配置
 
 编辑 Cursor 全局配置文件 `~/.cursor/mcp.json`，格式同上。
 
-### 方法四：全命令行参数
+## 指定自定义配置文件
 
 ```json
 {
   "mcpServers": {
     "dm-database": {
-      "command": "node",
-      "args": [
-        "/absolute/path/to/dm-mcp-server/dist/index.js",
-        "--jar", "/opt/dmdbms/drivers/jdbc/DmJdbcDriver18.jar",
-        "--host", "192.168.1.100",
-        "--port", "5236",
-        "--user", "SYSDBA",
-        "--password", "your_password",
-        "--schema", "PROD",
-        "--mode", "readwrite"
-      ]
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server", "--config", "./my-config.json"],
+      "env": {
+        "JAVA_HOME": "/path/to/jdk/home"
+      }
     }
   }
 }
@@ -69,6 +63,6 @@
 
 ## 注意事项
 
-- Cursor 的 MCP 配置中，`args` 中的路径需要使用绝对路径
-- 如果 Cursor 找不到 `node`，请使用完整路径如 `/usr/local/bin/node`
-- 密码等敏感信息建议使用配置文件而非命令行参数
+- 如果已通过 `npm link` 全局安装，可以用 `dm-mcp-server` 替代 `npx -y dm-mcp-server`
+- 也可以在 `dm-mcp-config.json` 的 `dm.javaHome` 字段中配置 JAVA_HOME
+- 密码等敏感信息请使用配置文件而非命令行参数

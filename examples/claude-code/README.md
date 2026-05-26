@@ -3,62 +3,85 @@
 ## 方法一：使用 claude mcp add 命令（推荐）
 
 ```bash
-# 添加 MCP Server（当前项目级别）
+# 项目级别（仅当前项目可用，自动在项目根目录查找 dm-mcp-config.json）
 claude mcp add dm-mcp \
   --scope project \
-  -- node /absolute/path/to/dm-mcp-server/dist/index.js \
-  --config /absolute/path/to/config.json
+  -e JAVA_HOME=/path/to/jdk/home \
+  -- npx -y dm-mcp-server
 
-# 添加 MCP Server（全局，所有项目可用）
+# 全局（所有项目可用）
 claude mcp add dm-mcp \
   --scope user \
-  -- node /absolute/path/to/dm-mcp-server/dist/index.js \
-  --config /absolute/path/to/config.json
-
-# 带环境变量
-claude mcp add dm-mcp \
-  --scope user \
-  -e DM_MCP_CONFIG=/path/to/config.json \
-  -e JAVA_HOME=/path/to/jdk \
-  -- node /absolute/path/to/dm-mcp-server/dist/index.js
+  -e JAVA_HOME=/path/to/jdk/home \
+  -- npx -y dm-mcp-server
 ```
 
-## 方法二：手动编辑配置文件
+> **说明**:
+> - 不需要指定 `--config`，MCP Server 会自动在当前项目根目录查找 `dm-mcp-config.json`
+> - `JAVA_HOME` 必须指向 JDK 根目录，**不要包含 `/bin`**
+> - 如果已通过 `npm link` 全局安装，可以用 `dm-mcp-server` 替代 `npx -y dm-mcp-server`
+> - 也可以在 `dm-mcp-config.json` 的 `dm.javaHome` 字段中配置，这样 `env` 中就不需要 `JAVA_HOME`
 
-### 项目级别配置
-在项目根目录创建 `.claude/settings.json`：
+## 方法二：手动编辑 .mcp.json
+
+在项目根目录创建 `.mcp.json`：
 
 ```json
 {
   "mcpServers": {
     "dm-database": {
-      "command": "node",
-      "args": ["/absolute/path/to/dm-mcp-server/dist/index.js", "--config", "/absolute/path/to/config.json"],
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server"],
       "env": {
-        "JAVA_HOME": "/path/to/jdk"
+        "JAVA_HOME": "/path/to/jdk/home"
       }
     }
   }
 }
 ```
 
-### 全局配置
-编辑 `~/.claude/settings.json`，格式同上。
+或者如果已经 `npm link`（本地开发）：
 
-## 方法三：全命令行参数（无需配置文件）
-
-```bash
-claude mcp add dm-mcp \
-  --scope user \
-  -- node /absolute/path/to/dm-mcp-server/dist/index.js \
-  --jar /opt/dmdbms/drivers/jdbc/DmJdbcDriver18.jar \
-  --host 192.168.1.100 \
-  --port 5236 \
-  --user SYSDBA \
-  --password 'your_password' \
-  --schema PROD \
-  --mode readwrite
+```json
+{
+  "mcpServers": {
+    "dm-database": {
+      "command": "dm-mcp-server",
+      "env": {
+        "JAVA_HOME": "/path/to/jdk/home"
+      }
+    }
+  }
+}
 ```
+
+## 指定自定义配置文件路径
+
+如果配置文件不在项目根目录或文件名不同：
+
+```json
+{
+  "mcpServers": {
+    "dm-database": {
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server", "--config", "./my-config.json"],
+      "env": {
+        "JAVA_HOME": "/path/to/jdk/home"
+      }
+    }
+  }
+}
+```
+
+## 配置文件自动查找规则
+
+不传 `--config` 时，MCP Server 按以下顺序查找配置文件：
+
+1. 环境变量 `DM_MCP_CONFIG` 指定的路径
+2. 当前目录（即项目根目录）下的 `dm-mcp-config.json`
+3. 当前目录下的 `config.json`
+
+配置文件中的 `jarPath` 和 `javaHome` 支持相对路径（相对于配置文件所在目录）。
 
 ## 验证连接
 

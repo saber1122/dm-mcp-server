@@ -9,30 +9,56 @@
 - `jdbcParams` 支持任意 JDBC 连接参数（`compatibleMode=mysql` 等）
 - 四级权限模型：`readonly` → `readwrite` → `ddl` → `admin`
 - 13 个 MCP 工具覆盖查询、DML、DDL、元数据、事务、诊断
-- 支持 `--config` 配置文件 + 命令行参数双通道，灵活接入各 AI 工具
+- **自动查找项目根目录的 `dm-mcp-config.json`**，配置极简
 
 ## 快速开始
 
 ### 1. 安装
 
 ```bash
+# 方式一：从 npm 安装（发布后）
+npm install -g dm-mcp-server
+
+# 方式二：本地开发
 cd dm-mcp-server
 npm install
 npm run build
+npm link
 ```
 
-### 2. 配置
+### 2. 创建配置文件
 
-```bash
-cp config.example.json config.json
-# 编辑 config.json，填入你的数据库连接信息和 JAR 路径
+在**项目根目录**创建 `dm-mcp-config.json`：
+
+```json
+{
+  "dm": {
+    "jarPath": "./drivers/DmJdbcDriver18.jar",
+    "javaHome": "/opt/homebrew/Cellar/openjdk@17/17.0.18/libexec/openjdk.jdk/Contents/Home",
+    "host": "192.168.1.100",
+    "port": 5236,
+    "database": "DAMENG",
+    "username": "SYSDBA",
+    "password": "your_password",
+    "schema": "PROD",
+    "jdbcParams": {
+      "compatibleMode": "mysql",
+      "characterEncoding": "UTF-8"
+    }
+  },
+  "permission": {
+    "mode": "readonly"
+  }
+}
 ```
 
-**必须修改的字段**：
+> `jarPath` 和 `javaHome` 支持**相对路径**（相对于配置文件所在目录），也支持绝对路径。
+
+**必填字段**：
 
 | 字段 | 说明 |
 |------|------|
-| `dm.jarPath` | 达梦 JDBC JAR 文件的绝对路径，如 `/opt/dmdbms/drivers/jdbc/DmJdbcDriver18.jar` |
+| `dm.jarPath` | 达梦 JDBC JAR 文件路径 |
 | `dm.host` | 数据库地址 |
 | `dm.port` | 端口号，默认 `5236` |
 | `dm.username` | 用户名 |
@@ -41,50 +67,75 @@ cp config.example.json config.json
 
 ### 3. 接入 AI 编程工具
 
-> 将下面的路径替换为你实际的绝对路径。
-
----
-
-## Claude Code 接入
-
-### 方法一：`claude mcp add` 命令（推荐）
-
-```bash
-# 项目级别（仅当前项目可用）
-claude mcp add dm-mcp \
-  -- node /path/to/dm-mcp-server/dist/index.js \
-  --config /path/to/config.json
-
-# 全局（所有项目可用）
-claude mcp add dm-mcp \
-  --scope user \
-  -- node /path/to/dm-mcp-server/dist/index.js \
-  --config /path/to/config.json
-```
-
-### 方法二：手动编辑配置文件
-
-项目根目录创建 `.claude/settings.json`：
+**最简配置 — 所有工具通用**：
 
 ```json
 {
   "mcpServers": {
     "dm-database": {
-      "command": "node",
-      "args": ["/path/to/dm-mcp-server/dist/index.js", "--config", "/path/to/config.json"],
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server"],
       "env": {
-        "JAVA_HOME": "/path/to/jdk"
+        "JAVA_HOME": "/path/to/jdk/home"
       }
     }
   }
 }
 ```
 
-### 验证
+> 不需要指定配置文件路径！MCP Server 会自动在项目根目录查找 `dm-mcp-config.json`。
+> `JAVA_HOME` 也可以写在 `dm-mcp-config.json` 的 `dm.javaHome` 字段中。
+
+---
+
+## Claude Code 接入
+
+### 最简方式（推荐）
 
 ```bash
-claude mcp list
-# 然后在 Claude Code 中对话: "查看 dm_test 表结构"
+# 项目级别
+claude mcp add dm-mcp \
+  --scope project \
+  -e JAVA_HOME=/path/to/jdk/home \
+  -- npx -y dm-mcp-server
+
+# 全局（所有项目）
+claude mcp add dm-mcp \
+  --scope user \
+  -e JAVA_HOME=/path/to/jdk/home \
+  -- npx -y dm-mcp-server
+```
+
+### 项目 `.mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "dm-database": {
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server"],
+      "env": {
+        "JAVA_HOME": "/path/to/jdk/home"
+      }
+    }
+  }
+}
+```
+
+### 自定义配置文件路径
+
+```json
+{
+  "mcpServers": {
+    "dm-database": {
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server", "--config", "./my-config.json"],
+      "env": {
+        "JAVA_HOME": "/path/to/jdk/home"
+      }
+    }
+  }
+}
 ```
 
 详细说明见 [examples/claude-code/](examples/claude-code/)
@@ -93,23 +144,21 @@ claude mcp list
 
 ## Cursor 接入
 
-在项目根目录创建 `.cursor/mcp.json`：
+项目根目录创建 `.cursor/mcp.json`：
 
 ```json
 {
   "mcpServers": {
     "dm-database": {
-      "command": "node",
-      "args": ["/path/to/dm-mcp-server/dist/index.js", "--config", "/path/to/config.json"],
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server"],
       "env": {
-        "JAVA_HOME": "/path/to/jdk"
+        "JAVA_HOME": "/path/to/jdk/home"
       }
     }
   }
 }
 ```
-
-或通过 Cursor Settings → MCP 界面添加。
 
 详细说明见 [examples/cursor/](examples/cursor/)
 
@@ -124,10 +173,10 @@ claude mcp list
   "mcp": {
     "servers": {
       "dm-database": {
-        "command": "node",
-        "args": ["/path/to/dm-mcp-server/dist/index.js", "--config", "/path/to/config.json"],
+        "command": "npx",
+        "args": ["-y", "dm-mcp-server"],
         "env": {
-          "JAVA_HOME": "/path/to/jdk"
+          "JAVA_HOME": "/path/to/jdk/home"
         }
       }
     }
@@ -141,16 +190,16 @@ claude mcp list
 
 ## Windsurf 接入
 
-在项目根目录创建 `.windsurf/mcp.json`：
+项目根目录创建 `.windsurf/mcp.json`：
 
 ```json
 {
   "mcpServers": {
     "dm-database": {
-      "command": "node",
-      "args": ["/path/to/dm-mcp-server/dist/index.js", "--config", "/path/to/config.json"],
+      "command": "npx",
+      "args": ["-y", "dm-mcp-server"],
       "env": {
-        "JAVA_HOME": "/path/to/jdk"
+        "JAVA_HOME": "/path/to/jdk/home"
       }
     }
   }
@@ -159,13 +208,26 @@ claude mcp list
 
 ---
 
+## 配置查找规则
+
+不传 `--config` 时，MCP Server 按以下顺序查找配置文件：
+
+1. 命令行参数 `--config` 指定的路径
+2. 环境变量 `DM_MCP_CONFIG` 指定的路径
+3. 当前目录下的 `dm-mcp-config.json`
+4. 当前目录下的 `config.json`
+
+配置文件中的 `jarPath` 和 `javaHome` 支持相对路径（相对于配置文件所在目录）。
+
+---
+
 ## 全命令行模式（无需配置文件）
 
-适合不想创建配置文件的场景，所有参数通过命令行传入：
+适合不想创建配置文件的场景：
 
 ```bash
 claude mcp add dm-mcp -- \
-  node /path/to/dm-mcp-server/dist/index.js \
+  npx -y dm-mcp-server \
   --jar /opt/dmdbms/drivers/jdbc/DmJdbcDriver18.jar \
   --host 192.168.1.100 \
   --port 5236 \
@@ -179,7 +241,7 @@ claude mcp add dm-mcp -- \
 
 | 参数 | 缩写 | 说明 |
 |------|------|------|
-| `--config` | `-c` | 配置文件路径 |
+| `--config` | `-c` | 配置文件路径（支持相对路径） |
 | `--jar` | | JDBC JAR 文件路径 |
 | `--host` | | 数据库主机 |
 | `--port` | | 端口号 |
@@ -266,7 +328,7 @@ admin（最高）
 dm-mcp-server/
 ├── src/
 │   ├── index.ts              # 入口 + CLI 参数解析
-│   ├── config.ts             # 配置 schema (zod)
+│   ├── config.ts             # 配置 schema (zod) + 相对路径解析
 │   ├── permission.ts         # 四级权限控制器
 │   ├── db/
 │   │   └── connection.ts     # JDBC 连接 (java-bridge)
