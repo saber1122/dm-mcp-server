@@ -1,6 +1,6 @@
 {
   "name": "dm-mcp-server",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "达梦数据库 MCP Server — 支持 Claude Code / Cursor / VS Code / Windsurf 等 AI 编程工具",
   "type": "module",
   "main": "dist/index.js",
@@ -30,11 +30,13 @@
     "cursor",
     "ai-tool"
   ],
-  "author": "",
+  "author": "saber1122",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/saber1122/dm-mcp-server.git",
+    "homepage": "https://github.com/saber1122/dm-mcp-server#readme",
+    "bugs": "https://github.com/saber1122/dm-mcp-server/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
