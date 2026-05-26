@@ -109,7 +109,10 @@ DM MCP Server — 达梦数据库 MCP 工具服务
 配置查找优先级:
   1. 命令行参数 --config 指定的路径
   2. 环境变量 DM_MCP_CONFIG 指向的路径
-  3. 当前目录下的 dm-mcp-config.json
+  3. .claude/dm-mcp-config.json   （Claude Code 项目惯例）
+  4. .claude/config.json
+  5. 当前目录 dm-mcp-config.json
+  6. 当前目录 config.json
 
 配置文件中的 jarPath/javaHome 支持相对路径（相对于配置文件所在目录）。
 
@@ -170,9 +173,17 @@ async function main() {
   // ─── 1. 加载配置 ─────────────────────────────
   let config: Config;
 
-  // 配置文件查找优先级：命令行 --config > 环境变量 DM_MCP_CONFIG > CWD/dm-mcp-config.json
+  // 配置文件查找优先级：
+  //   1. 命令行 --config
+  //   2. 环境变量 DM_MCP_CONFIG
+  //   3. CWD/.claude/dm-mcp-config.json   （Claude Code 项目惯例）
+  //   4. CWD/.claude/config.json
+  //   5. CWD/dm-mcp-config.json
+  //   6. CWD/config.json
   const cwd = process.cwd();
   const autoConfigCandidates = [
+    path.join(cwd, ".claude", "dm-mcp-config.json"),
+    path.join(cwd, ".claude", "config.json"),
     path.join(cwd, "dm-mcp-config.json"),
     path.join(cwd, "config.json"),
   ];

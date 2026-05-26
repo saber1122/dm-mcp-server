@@ -28,7 +28,7 @@ npm link
 
 ### 2. 创建配置文件
 
-在**项目根目录**创建 `dm-mcp-config.json`：
+在**项目根目录** `.claude/config.json` 中配置（Claude Code 推荐方式）：
 
 ```json
 {
@@ -83,8 +83,8 @@ npm link
 }
 ```
 
-> 不需要指定配置文件路径！MCP Server 会自动在项目根目录查找 `dm-mcp-config.json`。
-> `JAVA_HOME` 也可以写在 `dm-mcp-config.json` 的 `dm.javaHome` 字段中。
+> 不需要指定配置文件路径！MCP Server 会自动在 `.claude/` 目录下查找配置文件。
+> `JAVA_HOME` 也可以写在配置文件的 `dm.javaHome` 字段中。
 
 ---
 
@@ -214,8 +214,10 @@ claude mcp add dm-mcp \
 
 1. 命令行参数 `--config` 指定的路径
 2. 环境变量 `DM_MCP_CONFIG` 指定的路径
-3. 当前目录下的 `dm-mcp-config.json`
-4. 当前目录下的 `config.json`
+3. `.claude/dm-mcp-config.json`
+4. `.claude/config.json`
+5. 当前目录 `dm-mcp-config.json`
+6. 当前目录 `config.json`
 
 配置文件中的 `jarPath` 和 `javaHome` 支持相对路径（相对于配置文件所在目录）。
 
